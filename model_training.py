@@ -7,7 +7,7 @@ model_name = "distilgpt2"  # You can experiment with other smaller models
 
 # Load pre-trained model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)   
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
 
 # Set padding side to left to match the model architecture
