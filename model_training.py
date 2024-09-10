@@ -4,10 +4,10 @@ import spacy
 import nltk
 from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity   
+from sklearn.metrics.pairwise import cosine_similarity
 
 from chatterbot import ChatBot
-from chatterbot.trainers import ChatterBotCorpusTrainer   
+from chatterbot.trainers import ChatterBotCorpusTrainer
 
 from textblob import TextBlob
 
