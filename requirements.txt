@@ -1,3 +1,8 @@
 streamlit
 transformers
 torch
+nltk
+spacy
+sklearn
+chatterbot
+textblob
