@@ -6,16 +6,22 @@ from nltk.stem import WordNetLemmatizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from chatterbot import ChatBot
-from chatterbot.trainers import ChatterBotCorpusTrainer
-
 from textblob import TextBlob
 
-# Load pre-trained seq2seq model (e.g., BART)
-tokenizer = AutoTokenizer.from_pretrained("facebook/bart-base")
-model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")
+# Use a smaller spaCy model
+nlp = spacy.load("en_core_web_sm")
 
+# Download NLTK data
+nltk.download('wordnet')
+nltk.download('punkt')
 
+# Use Streamlit's caching to load models only once
+@st.cache(allow_output_mutation=True)
+def load_models():
+    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-base")
+    model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")
+
+    return tokenizer, model
 # Load spaCy model for NLP tasks
 nlp = spacy.load("en_core_web_sm")
 
@@ -65,4 +71,5 @@ def main():
       st.text_area("Chatbot:", value=response, height=200)
 
 if __name__ == "__main__":
-  main()
+    tokenizer, model = load_models()
+    main()
