@@ -1,75 +1,55 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import spacy
-import nltk
-from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-from textblob import TextBlob
+# Device setup for GPU if available
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Use a smaller spaCy model
-nlp = spacy.load("en_core_web_sm")
+# Load pre-trained DialoGPT model and tokenizer
+tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
+model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
-# Download NLTK data
-nltk.download('wordnet')
-nltk.download('punkt')
+# Set padding side to left to match the model architecture
+tokenizer.padding_side = "left"
+tokenizer.pad_token = tokenizer.eos_token  # Set pad token if it is not set
 
-# Use Streamlit's caching to load models only once
-@st.cache(allow_output_mutation=True)
-def load_models():
-    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-base")
-    model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")
+# Move the model to GPU if available
+model.to(device)
 
-    return tokenizer, model
-# Load spaCy model for NLP tasks
-nlp = spacy.load("en_core_web_sm")
+# Chatbot function to generate response
+def generate_response(user_input, chat_history_ids):
+    # Encode the user input, add the end-of-sequence token, and move tensors to GPU if available
+    new_user_input_ids = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors='pt').to(device)
 
-# Download NLTK data
-nltk.download('wordnet')
-nltk.download('punkt')
+    # Append the new user input to the chat history
+    bot_input_ids = torch.cat([chat_history_ids, new_user_input_ids], dim=-1) if chat_history_ids is not None else new_user_input_ids
 
-def preprocess_text(text):
-  # Tokenize, lemmatize, and remove stop words
-  doc = nlp(text)
-  tokens = [token.lemma_ for token in doc if not token.is_stop]
-  return ' '.join(tokens)
+    # Generate a response from the model
+    chat_history_ids = model.generate(bot_input_ids, max_length=1000, pad_token_id=tokenizer.eos_token_id)
 
-def get_response(user_input, chat_history):
-  # Preprocess input
-  user_input_processed = preprocess_text(user_input)
+    # Decode the model's response
+    bot_response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    
+    return bot_response, chat_history_ids
 
-  # Update chat history
-  chat_history.append(user_input_processed)
-
-  # Use seq2seq model for generation
-  inputs = tokenizer(chat_history[-2:], return_tensors="pt", padding=True, truncation=True)
-  outputs = model.generate(**inputs)
-  generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-  # Use TextBlob for sentiment analysis and adjust response accordingly
-  sentiment = TextBlob(generated_text).sentiment.polarity
-  if sentiment > 0.2:
-    # Positive sentiment, adjust response accordingly
-    generated_text = "That sounds great! " + generated_text
-  elif sentiment < -0.2:
-    # Negative sentiment, adjust response accordingly
-    generated_text = "I understand. " + generated_text
-
-  return generated_text
-
+# Streamlit app
 def main():
-  st.title("Chatbot")
+    st.title("Chatbot Interface")
+    st.write("Talk to the chatbot below! Type 'quit' to stop the conversation.")
 
-  chat_history = []
+    # Initialize chat history
+    chat_history_ids = None
 
-  while True:
-    user_input = st.text_input("You:")
-    if user_input:
-      response = get_response(user_input, chat_history)
-      chat_history.append(response)
-      st.text_area("Chatbot:", value=response, height=200)
+    # Input from user
+    user_input = st.text_input("You:", "")
+
+    if st.button("Send"):
+        if user_input.lower() == "quit":
+            st.write("Chat ended. Thank you!")
+        else:
+            # Generate and display the bot's response
+            bot_response, chat_history_ids = generate_response(user_input, chat_history_ids)
+            st.text_area("Chatbot:", value=bot_response, height=200, max_chars=None, key=None)
 
 if __name__ == "__main__":
-    tokenizer, model = load_models()
     main()
