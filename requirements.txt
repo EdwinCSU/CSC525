@@ -6,3 +6,4 @@ spacy
 sklearn
 chatterbot
 textblob
+hugchat
