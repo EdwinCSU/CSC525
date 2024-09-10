@@ -13,7 +13,7 @@ from textblob import TextBlob
 
 # Load pre-trained seq2seq model (e.g., BART)
 tokenizer = AutoTokenizer.from_pretrained("facebook/bart-base")
-model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")   
+model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")
 
 
 # Load spaCy model for NLP tasks
