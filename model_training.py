@@ -1,42 +1,68 @@
 import streamlit as st
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import spacy
+import nltk
+from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity   
 
-# Choose a smaller model for Streamlit Cloud
-model_name = "distilgpt2"  # You can experiment with other smaller models
+from chatterbot import ChatBot
+from chatterbot.trainers import ChatterBotCorpusTrainer   
 
-# Load pre-trained model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+from textblob import TextBlob
+
+# Load pre-trained seq2seq model (e.g., BART)
+tokenizer = AutoTokenizer.from_pretrained("facebook/bart-base")
+model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-base")   
 
 
-# Set padding side to left to match the model architecture
-tokenizer.padding_side = "left"
-tokenizer.pad_token = tokenizer.eos_token
+# Load spaCy model for NLP tasks
+nlp = spacy.load("en_core_web_sm")
 
-# Chatbot function
-def generate_response(user_input, chat_history_ids):
-  new_user_input_ids = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors='pt')
-  bot_input_ids = torch.cat([chat_history_ids, new_user_input_ids], dim=-1)   
- if chat_history_ids is not None else new_user_input_ids
-  chat_history_ids = model.generate(bot_input_ids, max_length=1000, pad_token_id=tokenizer.eos_token_id)   
+# Download NLTK data
+nltk.download('wordnet')
+nltk.download('punkt')
 
-  bot_response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)   
+def preprocess_text(text):
+  # Tokenize, lemmatize, and remove stop words
+  doc = nlp(text)
+  tokens = [token.lemma_ for token in doc if not token.is_stop]
+  return ' '.join(tokens)
 
-  return bot_response, chat_history_ids
+def get_response(user_input, chat_history):
+  # Preprocess input
+  user_input_processed = preprocess_text(user_input)
+
+  # Update chat history
+  chat_history.append(user_input_processed)
+
+  # Use seq2seq model for generation
+  inputs = tokenizer(chat_history[-2:], return_tensors="pt", padding=True, truncation=True)
+  outputs = model.generate(**inputs)
+  generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+  # Use TextBlob for sentiment analysis and adjust response accordingly
+  sentiment = TextBlob(generated_text).sentiment.polarity
+  if sentiment > 0.2:
+    # Positive sentiment, adjust response accordingly
+    generated_text = "That sounds great! " + generated_text
+  elif sentiment < -0.2:
+    # Negative sentiment, adjust response accordingly
+    generated_text = "I understand. " + generated_text
+
+  return generated_text
 
 def main():
-  st.title("Chatbot Interface")
-  st.write("Interact with the chatbot! Type 'quit' to end the chat.")
+  st.title("Chatbot")
 
-  chat_history_ids = None
+  chat_history = []
 
-  user_input = st.text_input("You:", "")
-
-  if st.button("Send"):
+  while True:
+    user_input = st.text_input("You:")
     if user_input:
-      bot_response, chat_history_ids = generate_response(user_input, chat_history_ids)
-      st.text_area("Chatbot:", value=bot_response, height=200, max_chars=None, key=None)
+      response = get_response(user_input, chat_history)
+      chat_history.append(response)
+      st.text_area("Chatbot:", value=response, height=200)
 
 if __name__ == "__main__":
   main()
